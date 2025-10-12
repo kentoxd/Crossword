@@ -4,23 +4,7 @@ import java.awt.*;
 import java.util.*;
 import java.util.List;
 
-/**
- * JavaCrosswordGenerator.java
- *
- * Single-file crossword generator/game tailored to DSA-themed words.
- *
- * Features:
- *  - 2D char[][] grid
- *  - Trie for dictionary storage & lookup
- *  - Backtracking word placement with heuristics & randomization
- *  - Constraint checks (intersections must match)
- *  - Undo/Redo (stacks)
- *  - Swing UI with grid, clues, Generate/Check/Undo/Redo/Reveal/Reset
- *  - Input validation (one letter per cell)
- *  - Scoring for correctly completed words
- *
- * Note: This is a generator for educational/demo purposes — not a production "crossword newspaper" generator.
- */
+
 public class JavaCrosswordGenerator {
     // Grid size - 18 rows x 17 columns
     private static final int ROWS = 18;
