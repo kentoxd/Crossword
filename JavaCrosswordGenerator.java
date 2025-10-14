@@ -1,87 +1,61 @@
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.text.*;
 import java.awt.*;
 import java.util.*;
 import java.util.List;
 
-/**
- * JavaCrosswordGenerator.java
- *
- * Single-file crossword generator/game tailored to DSA-themed words.
- *
- * Features:
- *  - 2D char[][] grid
- *  - Trie for dictionary storage & lookup
- *  - Backtracking word placement with heuristics & randomization
- *  - Constraint checks (intersections must match)
- *  - Undo/Redo (stacks)
- *  - Swing UI with grid, clues, Generate/Check/Undo/Redo/Reveal/Reset
- *  - Input validation (one letter per cell)
- *  - Scoring for correctly completed words
- *
- * Note: This is a generator for educational/demo purposes — not a production "crossword newspaper" generator.
- */
 public class JavaCrosswordGenerator {
-    // Grid size - 18 rows x 17 columns
     private static final int ROWS = 18;
     private static final int COLS = 18;
 
-    // Representation: '#' = black cell, '.' = empty, 'A'..'Z' letters when placed in solution
-    private char[][] grid = new char[ROWS][COLS];
-    private char[][] solution = new char[ROWS][COLS]; // final placed letters (only letters or '#')
-
-    // Trie (dictionary)
+    private char[][] solution = new char[ROWS][COLS];
     private final Trie trie = new Trie();
-
-    // Words list with clues (DSA-themed)
     private final List<String> words = new ArrayList<>();
     private final Map<String, String> clues = new HashMap<>();
-
-    // Placements done by the generator (for undo/redo & checking)
-    private final Deque<Placement> undoStack = new ArrayDeque<>();
-    private final Deque<Placement> redoStack = new ArrayDeque<>();
-
-    // Swing UI
+    
+    
     private final JFrame frame = new JFrame("DSA Crossword Generator");
     private final JPanel gridPanel = new JPanel(new GridLayout(ROWS, COLS));
+    private final JPanel coordinateGridPanel = new JPanel(new BorderLayout());
     private final JTextArea clueArea = new JTextArea();
     private final JTextField[][] cellFields = new JTextField[ROWS][COLS];
     private final JLabel scoreLabel = new JLabel("Score: 0");
     private int score = 0;
 
-    // Internal placements (used by generator)
     private final List<Placement> placed = new ArrayList<>();
-    
-    // Track current word being typed to prevent wrong navigation
     private Placement currentTypingWord = null;
+    
+    // User action undo/redo
+    private final Deque<UserAction> userUndoStack = new ArrayDeque<>();
+    private final Deque<UserAction> userRedoStack = new ArrayDeque<>();
+    private boolean isUndoRedoAction = false; // Flag to prevent recording during undo/redo
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             JavaCrosswordGenerator app = new JavaCrosswordGenerator();
             app.setupDictionaryAndClues();
             app.buildUI();
-            app.loadCrossword();
+            app.loadDefaultCrossword();
             app.frame.setVisible(true);
-            
         });
     }
 
     private void setupDictionaryAndClues() {
-        // DSA themed words + clues from your crossword puzzle
-        
-        // ACROSS clues:
         putWord("QUEUE", "A linear data structure where elements are processed in First In, First Out (FIFO) order");
         putWord("BUCKETSORT", "A sorting algorithm that distributes elements into groups (or \"bins\") before sorting them individually");
         putWord("SHELLSORT", "An in-place sorting algorithm that generalizes insertion sort by comparing elements separated by a gap");
         putWord("ARRAY", "A fixed-size collection of elements stored in contiguous memory locations");
-        
-        // DOWN clues:
         putWord("LINKEDLIST", "A linear data structure where each element (node) contains a reference to the next node");
         putWord("ALGORITHM", "A step-by-step procedure or formula for solving a problem");
         putWord("BUBBLESORT", "A simple sorting algorithm that repeatedly swaps adjacent elements if they are in the wrong order");
         putWord("STACK", "A linear data structure that follows the Last In, First Out (LIFO) principle");
+        putWord("TREE", "A hierarchical data structure with nodes connected by edges");
+        putWord("HASH", "A data structure that maps keys to values for efficient lookup");
+        putWord("GRAPH", "A non-linear data structure consisting of vertices and edges");
+        putWord("HEAP", "A complete binary tree that satisfies the heap property");
 
-        // Insert into trie
         for (String w : words) trie.insert(w);
     }
 
@@ -90,70 +64,39 @@ public class JavaCrosswordGenerator {
         clues.put(w.toUpperCase(), clue);
     }
 
-    // Load the single crossword puzzle
-    private void loadCrossword() {
-        // Clear everything
-        for (int r = 0; r < ROWS; r++) {
-            Arrays.fill(grid[r], '#'); // default to black
-            Arrays.fill(solution[r], '#');
-        }
+    private void loadDefaultCrossword() {
+        clearGrid();
+        placed.clear();
         
-        // Clear UI fields
-        for (int r = 0; r < ROWS; r++) for (int c = 0; c < COLS; c++) {
-            cellFields[r][c].setText("");
-            cellFields[r][c].setBackground(Color.WHITE);
-            cellFields[r][c].setEditable(false);
-            cellFields[r][c].setVisible(true);
-            cellFields[r][c].getParent().setBackground(Color.WHITE);
-        }
-        
-        //Down;
+        // Create a simple, valid default puzzle
         placed.add(new Placement("LINKEDLIST", 0, 7, Direction.DOWN));
-        placed.add(new Placement("STACK", 13, 0, Direction.DOWN));
+        placed.add(new Placement("QUEUE", 4, 5, Direction.ACROSS));
         placed.add(new Placement("BUBBLESORT", 7, 2, Direction.DOWN));
-        placed.add(new Placement("ALGORITHM", 6, 9, Direction.DOWN));
-        placed.add(new Placement("ALGORITHM", 1, 11, Direction.DOWN));
-
-
-
-        //Across:
-        placed.add(new Placement("ARRAY", 15, 0, Direction.ACROSS));
         placed.add(new Placement("BUCKETSORT", 9, 2, Direction.ACROSS));
-        placed.add(new Placement("QUEUE",4, 5, Direction.ACROSS));
-        placed.add(new Placement("SHELLSORTT", 13, 8, Direction.ACROSS));
-        // placed.add(new Placement("WORD", row, col, Direction.DOWN));
+        placed.add(new Placement("STACK", 13, 0, Direction.DOWN));
+        placed.add(new Placement("ARRAY", 15, 0, Direction.ACROSS));
+        placed.add(new Placement("SHELLSORT", 13, 8, Direction.ACROSS));
+        placed.add(new Placement("ALGORITHM", 6, 9, Direction.DOWN));
         
-        // Apply placements to solution
         for (Placement p : placed) {
             applyPlacementToSolution(p);
         }
         
-        // Update UI
-        updateUIFromSolution(false);
+        updateUIFromSolution(true);
         updateClueArea();
-        
-        // Reset game state
-        undoStack.clear();
-        redoStack.clear();
-        score = 0;
-        currentTypingWord = null; // Reset current typing word
-        updateScore();
-        
-        // Update title
-        frame.setTitle("DSA Crossword Generator");
+        resetGameState();
+        frame.setTitle("DSA Crossword - Default Puzzle");
     }
 
-    // --- UI building ---
     private void buildUI() {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(1200, 900);
+        frame.setSize(1400, 1000);
+        frame.setResizable(false); // Make GUI fixed size
         frame.setLayout(new BorderLayout());
 
-        // Grid panel
         gridPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
         rebuildGridUI();
 
-        // Right panel: controls + clues
         JPanel rightPanel = new JPanel(new BorderLayout());
         clueArea.setEditable(false);
         clueArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
@@ -161,41 +104,75 @@ public class JavaCrosswordGenerator {
         JScrollPane clueScroll = new JScrollPane(clueArea);
         clueScroll.setPreferredSize(new Dimension(400, 700));
 
-        JPanel topButtons = new JPanel(new GridLayout(2, 2, 6, 6));
+        JPanel topButtons = new JPanel(new GridLayout(4, 2, 6, 6));
         JButton checkBtn = new JButton("Check");
         JButton revealBtn = new JButton("Reveal");
         JButton hintBtn = new JButton("Hint");
         JButton resetBtn = new JButton("Reset");
+        JButton generateBtn = new JButton("Generate");
+        JButton randomBtn = new JButton("Random");
+        JButton undoBtn = new JButton("Undo (Ctrl+Z)");
+        JButton redoBtn = new JButton("Redo (Ctrl+Y)");
 
         checkBtn.addActionListener(_ -> checkAllWords());
-
         revealBtn.addActionListener(_ -> {
-            // reveal the entire solution
             updateUIFromSolution(true);
-            // compute final score
             computeScoreFromSolution();
         });
-
         hintBtn.addActionListener(_ -> showHint());
-
         resetBtn.addActionListener(_ -> {
-            // Clear all user input
             for (int r = 0; r < ROWS; r++) {
                 for (int c = 0; c < COLS; c++) {
-                    cellFields[r][c].setText("");
-                    cellFields[r][c].setBackground(Color.WHITE);
+                    if (cellFields[r][c].isEditable()) {
+                        cellFields[r][c].setText("");
+                        cellFields[r][c].setBackground(Color.WHITE);
+                    }
                 }
             }
-            // Reset score and current typing word
-            score = 0;
-            currentTypingWord = null;
-            updateScore();
+            resetGameState();
         });
+        
+        generateBtn.addActionListener(_ -> {
+            List<String> wordsToGenerate = new ArrayList<>(words);
+            wordsToGenerate = wordsToGenerate.subList(0, Math.min(8, wordsToGenerate.size())); // Limit to 8 words
+            
+            if (generatePuzzleBacktrack(wordsToGenerate)) {
+                updateUIFromSolution(false);
+                updateClueArea();
+                resetGameState();
+                JOptionPane.showMessageDialog(frame, "Puzzle generated successfully with " + placed.size() + " words!");
+            } else {
+                JOptionPane.showMessageDialog(frame, "Failed to generate puzzle. Try with fewer words.");
+            }
+        });
+        
+        randomBtn.addActionListener(_ -> {
+            List<String> wordsToGenerate = new ArrayList<>(words);
+            Collections.shuffle(wordsToGenerate);
+            wordsToGenerate = wordsToGenerate.subList(0, Math.min(8, wordsToGenerate.size()));
+            
+            int seed = (int) System.currentTimeMillis();
+            if (generateRandomPuzzle(wordsToGenerate, seed)) {
+                updateUIFromSolution(false);
+                updateClueArea();
+                resetGameState();
+                JOptionPane.showMessageDialog(frame, "Random puzzle generated with " + placed.size() + " words!");
+            } else {
+                JOptionPane.showMessageDialog(frame, "Failed to generate random puzzle.");
+            }
+        });
+        
+        undoBtn.addActionListener(_ -> undoLastAction());
+        redoBtn.addActionListener(_ -> redoLastAction());
 
         topButtons.add(checkBtn);
         topButtons.add(revealBtn);
         topButtons.add(hintBtn);
         topButtons.add(resetBtn);
+        topButtons.add(generateBtn);
+        topButtons.add(randomBtn);
+        topButtons.add(undoBtn);
+        topButtons.add(redoBtn);
 
         JPanel scorePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         scorePanel.add(scoreLabel);
@@ -204,23 +181,98 @@ public class JavaCrosswordGenerator {
         rightPanel.add(clueScroll, BorderLayout.CENTER);
         rightPanel.add(scorePanel, BorderLayout.SOUTH);
 
-        frame.add(gridPanel, BorderLayout.CENTER);
+        frame.add(coordinateGridPanel, BorderLayout.CENTER);
         frame.add(rightPanel, BorderLayout.EAST);
+        
+        // Add keyboard shortcuts
+        addKeyboardShortcuts();
+    }
+    
+    private void addKeyboardShortcuts() {
+        KeyStroke undoKeyStroke = KeyStroke.getKeyStroke("control Z");
+        KeyStroke redoKeyStroke = KeyStroke.getKeyStroke("control Y");
+        
+        frame.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(undoKeyStroke, "undo");
+        frame.getRootPane().getActionMap().put("undo", new AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                undoLastAction();
+            }
+        });
+        
+        frame.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(redoKeyStroke, "redo");
+        frame.getRootPane().getActionMap().put("redo", new AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                redoLastAction();
+            }
+        });
     }
 
-    // Build the visible grid UI with text fields and black panels
     private void rebuildGridUI() {
+        coordinateGridPanel.removeAll();
+        
+        // Create a single panel with all components using a precise grid layout
+        JPanel mainPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        
+        // Create the crossword grid first
         gridPanel.removeAll();
         gridPanel.setLayout(new GridLayout(ROWS, COLS, 1, 1));
+        
+        // Store cell panels for later access
+        JPanel[][] cellPanels = new JPanel[ROWS][COLS];
+        
         for (int r = 0; r < ROWS; r++) {
             for (int c = 0; c < COLS; c++) {
                 JPanel p = new JPanel(new BorderLayout());
                 p.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
+                p.setPreferredSize(new Dimension(35, 35));
+                p.setMinimumSize(new Dimension(35, 35));
+                p.setMaximumSize(new Dimension(35, 35));
+                
                 JTextField tf = new JTextField();
                 tf.setHorizontalAlignment(JTextField.CENTER);
                 tf.setFont(new Font("SansSerif", Font.BOLD, 18));
                 tf.setBorder(null);
-                // Input filter: only 1 letter A-Z
+                
+                final int currentRow = r;
+                final int currentCol = c;
+                
+                // Document listener to track changes for undo/redo
+                tf.getDocument().addDocumentListener(new DocumentListener() {
+                    private String oldValue = "";
+                    
+                    @Override
+                    public void insertUpdate(DocumentEvent e) {
+                        handleChange();
+                    }
+                    
+                    @Override
+                    public void removeUpdate(DocumentEvent e) {
+                        handleChange();
+                    }
+                    
+                    @Override
+                    public void changedUpdate(DocumentEvent e) {
+                        handleChange();
+                    }
+                    
+                    private void handleChange() {
+                        if (!isUndoRedoAction && tf.isEditable()) {
+                            String newValue = tf.getText();
+                            char oldChar = oldValue.isEmpty() ? ' ' : oldValue.charAt(0);
+                            char newChar = newValue.isEmpty() ? ' ' : newValue.charAt(0);
+                            
+                            if (oldChar != newChar) {
+                                recordUserAction(currentRow, currentCol, oldChar, newChar);
+                                oldValue = newValue;
+                            }
+                        }
+                    }
+                });
+                
+                // Input filter
                 ((AbstractDocument) tf.getDocument()).setDocumentFilter(new DocumentFilter() {
                     @Override
                     public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs)
@@ -245,59 +297,50 @@ public class JavaCrosswordGenerator {
                     }
                 });
 
-                // Add Tab navigation and automatic navigation after typing
-                final int currentRow = r;
-                final int currentCol = c;
-                
-                // Add focus listener to set current typing word when cell is focused
                 tf.addFocusListener(new java.awt.event.FocusAdapter() {
                     @Override
                     public void focusGained(java.awt.event.FocusEvent e) {
-                        // When clicking on a cell, prioritize ACROSS words first, then DOWN
-                        // This gives consistent behavior at intersections
                         if (currentTypingWord == null || !currentTypingWord.coversCell(currentRow, currentCol)) {
                             Placement acrossWord = null;
                             Placement downWord = null;
                             
                             for (Placement p : placed) {
                                 if (p.coversCell(currentRow, currentCol)) {
-                                    if (p.dir == Direction.ACROSS) {
-                                        acrossWord = p;
-                                    } else {
-                                        downWord = p;
-                                    }
+                                    if (p.dir == Direction.ACROSS) acrossWord = p;
+                                    else downWord = p;
                                 }
                             }
-                            
-                            // Prioritize across word at intersections
                             currentTypingWord = (acrossWord != null) ? acrossWord : downWord;
                         }
                     }
                 });
                 
-                
-                // Replace the keyPressed listener in rebuildGridUI() with this:
                 tf.addKeyListener(new java.awt.event.KeyAdapter() {
                     @Override
                     public void keyPressed(java.awt.event.KeyEvent e) {
                         if (e.getKeyCode() == java.awt.event.KeyEvent.VK_TAB) {
-                            e.consume(); // Prevent default tab behavior
-                            // Tab switches to the next word, not next cell in same word
+                            e.consume();
                             switchToNextWord(currentRow, currentCol);
                         } else if (e.getKeyCode() == java.awt.event.KeyEvent.VK_RIGHT || 
                                    e.getKeyCode() == java.awt.event.KeyEvent.VK_DOWN) {
-                            e.consume(); // Prevent default arrow behavior
+                            e.consume();
                             navigateToNextCell(currentRow, currentCol);
                         } else if (e.getKeyCode() == java.awt.event.KeyEvent.VK_LEFT || 
                                    e.getKeyCode() == java.awt.event.KeyEvent.VK_UP) {
-                            e.consume(); // Prevent default arrow behavior
+                            e.consume();
                             navigateToPreviousCell(currentRow, currentCol);
+                        } else if (e.getKeyCode() == java.awt.event.KeyEvent.VK_BACK_SPACE) {
+                            // Handle backspace - move to previous cell after deleting
+                            SwingUtilities.invokeLater(() -> {
+                                if (tf.getText().isEmpty()) {
+                                    navigateToPreviousCell(currentRow, currentCol);
+                                }
+                            });
                         }
                     }
                     
                     @Override
                     public void keyTyped(java.awt.event.KeyEvent e) {
-                        // Auto-navigate after typing a letter
                         if (e.getKeyChar() >= 'A' && e.getKeyChar() <= 'Z' || 
                             e.getKeyChar() >= 'a' && e.getKeyChar() <= 'z') {
                             SwingUtilities.invokeLater(() -> {
@@ -306,51 +349,92 @@ public class JavaCrosswordGenerator {
                         }
                     }
                 });
+                
                 cellFields[r][c] = tf;
                 p.add(tf, BorderLayout.CENTER);
+                cellPanels[r][c] = p;
                 gridPanel.add(p);
             }
         }
-        gridPanel.revalidate();
-        gridPanel.repaint();
-    }
-
-
-    // apply placement directly to solution grid
-    private void applyPlacementToSolution(Placement p) {
-        int r = p.row, c = p.col;
-        for (int i = 0; i < p.word.length(); i++) {
-            char ch = p.word.charAt(i);
-            if (p.dir == Direction.ACROSS) {
-                solution[r][c + i] = ch;
-            } else {
-                solution[r + i][c] = ch;
+        
+        // Add corner cell (empty)
+        gbc.gridx = 0; gbc.gridy = 0;
+        JLabel cornerLabel = new JLabel("", JLabel.CENTER);
+        cornerLabel.setPreferredSize(new Dimension(35, 35));
+        cornerLabel.setMinimumSize(new Dimension(35, 35));
+        cornerLabel.setMaximumSize(new Dimension(35, 35));
+        cornerLabel.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
+        cornerLabel.setBackground(Color.LIGHT_GRAY);
+        cornerLabel.setOpaque(true);
+        mainPanel.add(cornerLabel, gbc);
+        
+        // Add column labels (0-17)
+        for (int c = 0; c < COLS; c++) {
+            gbc.gridx = c + 1; gbc.gridy = 0;
+            JLabel colLabel = new JLabel(String.valueOf(c), JLabel.CENTER);
+            colLabel.setFont(new Font("SansSerif", Font.BOLD, 12));
+            colLabel.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
+            colLabel.setBackground(Color.LIGHT_GRAY);
+            colLabel.setOpaque(true);
+            colLabel.setPreferredSize(new Dimension(35, 35));
+            colLabel.setMinimumSize(new Dimension(35, 35));
+            colLabel.setMaximumSize(new Dimension(35, 35));
+            mainPanel.add(colLabel, gbc);
+        }
+        
+        // Add row labels (0-17) and grid cells
+        for (int r = 0; r < ROWS; r++) {
+            // Row label
+            gbc.gridx = 0; gbc.gridy = r + 1;
+            JLabel rowLabel = new JLabel(String.valueOf(r), JLabel.CENTER);
+            rowLabel.setFont(new Font("SansSerif", Font.BOLD, 12));
+            rowLabel.setBorder(BorderFactory.createLineBorder(Color.LIGHT_GRAY));
+            rowLabel.setBackground(Color.LIGHT_GRAY);
+            rowLabel.setOpaque(true);
+            rowLabel.setPreferredSize(new Dimension(35, 35));
+            rowLabel.setMinimumSize(new Dimension(35, 35));
+            rowLabel.setMaximumSize(new Dimension(35, 35));
+            mainPanel.add(rowLabel, gbc);
+            
+            // Grid cells for this row
+            for (int c = 0; c < COLS; c++) {
+                gbc.gridx = c + 1; gbc.gridy = r + 1;
+                mainPanel.add(cellPanels[r][c], gbc);
             }
         }
-        // push to undo stack (generator-level undo isn't user-facing)
-        undoStack.push(p);
-        // clear redo on new placement
-        redoStack.clear();
+        
+        coordinateGridPanel.add(mainPanel, BorderLayout.CENTER);
+        coordinateGridPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        
+        coordinateGridPanel.revalidate();
+        coordinateGridPanel.repaint();
     }
 
-    // Update the visible UI from solution grid. If revealLetters true => show letters in textfields.
+    private void applyPlacementToSolution(Placement p) {
+        for (int i = 0; i < p.word.length(); i++) {
+            int r = (p.dir == Direction.ACROSS) ? p.row : p.row + i;
+            int c = (p.dir == Direction.ACROSS) ? p.col + i : p.col;
+            solution[r][c] = p.word.charAt(i);
+        }
+    }
+
     private void updateUIFromSolution(boolean revealLetters) {
+        isUndoRedoAction = true; // Prevent recording these changes
+        
         for (int r = 0; r < ROWS; r++) {
             for (int c = 0; c < COLS; c++) {
                 char sol = solution[r][c];
                 JTextField tf = cellFields[r][c];
                 JPanel parent = (JPanel) tf.getParent();
+                
                 if (sol == '#') {
-                    // black cell
                     tf.setText("");
                     tf.setEditable(false);
                     parent.setBackground(Color.BLACK);
                     tf.setVisible(false);
                 } else {
-                    // white cell
                     parent.setBackground(Color.WHITE);
                     tf.setVisible(true);
-                    tf.setEditable(true);
                     if (revealLetters) {
                         tf.setText(String.valueOf(sol));
                         tf.setEditable(false);
@@ -363,93 +447,102 @@ public class JavaCrosswordGenerator {
                 }
             }
         }
+        
+        isUndoRedoAction = false;
     }
 
-    // Update clue area based on placed words and their directions/locations
     private void updateClueArea() {
         StringBuilder sb = new StringBuilder();
         sb.append("DSA Crossword Puzzle\n");
-        sb.append("Across & Down clues:\n\n");
+        sb.append("====================\n\n");
         
-        // Sort placed by row/col then direction
-        List<Placement> list = new ArrayList<>(placed);
-        list.sort(Comparator.comparingInt((Placement p) -> p.row).thenComparingInt(p -> p.col));
+        List<Placement> acrossWords = new ArrayList<>();
+        List<Placement> downWords = new ArrayList<>();
         
-        for (Placement p : list) {
-            sb.append(String.format("(%s) @ [%d,%d]\n", p.dir, p.row, p.col));
-            sb.append("  -> ").append(clues.getOrDefault(p.word, "No clue available")).append("\n\n");
+        for (Placement p : placed) {
+            if (p.dir == Direction.ACROSS) acrossWords.add(p);
+            else downWords.add(p);
+        }
+        
+        acrossWords.sort(Comparator.comparingInt((Placement p) -> p.row).thenComparingInt(p -> p.col));
+        downWords.sort(Comparator.comparingInt((Placement p) -> p.col).thenComparingInt(p -> p.row));
+        
+        if (!acrossWords.isEmpty()) {
+            sb.append("ACROSS:\n");
+            for (int i = 0; i < acrossWords.size(); i++) {
+                Placement p = acrossWords.get(i);
+                sb.append(String.format("%d. [%d,%d] %s\n", i+1, p.row, p.col, 
+                    clues.getOrDefault(p.word, "No clue")));
+            }
+            sb.append("\n");
+        }
+        
+        if (!downWords.isEmpty()) {
+            sb.append("DOWN:\n");
+            for (int i = 0; i < downWords.size(); i++) {
+                Placement p = downWords.get(i);
+                sb.append(String.format("%d. [%d,%d] %s\n", i+1, p.row, p.col,
+                    clues.getOrDefault(p.word, "No clue")));
+            }
         }
         
         clueArea.setText(sb.toString());
     }
+
     private void switchToNextWord(int currentRow, int currentCol) {
-        // Find the next word after the current one
-        int currentIndex = -1;
-        if (currentTypingWord != null) {
-            currentIndex = placed.indexOf(currentTypingWord);
-        }
-        
-        // Move to the next word in the list (wrap around)
+        int currentIndex = (currentTypingWord != null) ? placed.indexOf(currentTypingWord) : -1;
         int nextIndex = (currentIndex + 1) % placed.size();
         Placement nextWord = placed.get(nextIndex);
-        
-        // Set as current typing word and focus on first cell
         currentTypingWord = nextWord;
         cellFields[nextWord.row][nextWord.col].requestFocus();
     }
-    // When user clicks check: evaluate each placed word whether the letters in the grid match solution
+
     private void checkAllWords() {
         if (placed.isEmpty()) {
-            JOptionPane.showMessageDialog(frame, "No puzzle loaded. Please select a puzzle first.");
+            JOptionPane.showMessageDialog(frame, "No puzzle loaded.");
             return;
         }
+        
         int correctWords = 0;
         int validWords = 0;
+        
         for (Placement p : placed) {
             boolean correct = true;
             StringBuilder userWord = new StringBuilder();
+            
             for (int i = 0; i < p.word.length(); i++) {
                 int rr = (p.dir == Direction.ACROSS) ? p.row : p.row + i;
                 int cc = (p.dir == Direction.ACROSS) ? p.col + i : p.col;
                 String text = cellFields[rr][cc].getText();
-                char ch = (text != null && text.length() > 0) ? text.toUpperCase().charAt(0) : '?';
+                char ch = (text != null && !text.isEmpty()) ? text.charAt(0) : '?';
                 userWord.append(ch);
-                if (ch != p.word.charAt(i)) {
-                    correct = false;
-                }
+                if (ch != p.word.charAt(i)) correct = false;
             }
             
-            // Use Trie to validate if user input is a valid word
             boolean isValidWord = trie.contains(userWord.toString());
             if (isValidWord) validWords++;
             
-            // color feedback
-            Color bg;
-            if (correct) {
-                bg = new Color(200, 255, 200); // green for correct
-            } else if (isValidWord) {
-                bg = new Color(255, 255, 200); // yellow for valid but not correct
-            } else {
-                bg = new Color(255, 220, 220); // red for invalid
-            }
+            Color bg = correct ? new Color(200, 255, 200) : 
+                      isValidWord ? new Color(255, 255, 200) : 
+                      new Color(255, 220, 220);
             
             for (int i = 0; i < p.word.length(); i++) {
                 int rr = (p.dir == Direction.ACROSS) ? p.row : p.row + i;
                 int cc = (p.dir == Direction.ACROSS) ? p.col + i : p.col;
                 cellFields[rr][cc].setBackground(bg);
             }
+            
             if (correct) correctWords++;
         }
-        // score: +10 per correct word, +5 per valid word
+        
         score = correctWords * 10 + validWords * 5;
         updateScore();
         JOptionPane.showMessageDialog(frame, 
-            "Check complete. Correct words: " + correctWords + " / " + placed.size() + 
-            "\nValid words: " + validWords + " / " + placed.size());
+            String.format("Correct: %d/%d\nValid: %d/%d\nScore: %d", 
+                correctWords, placed.size(), validWords, placed.size(), score));
     }
 
     private void computeScoreFromSolution() {
-        // used when revealing entire board
         score = placed.size() * 10;
         updateScore();
     }
@@ -458,83 +551,66 @@ public class JavaCrosswordGenerator {
         scoreLabel.setText("Score: " + score);
     }
 
-    // Show hint using Trie startsWith functionality
     private void showHint() {
         if (placed.isEmpty()) {
-            JOptionPane.showMessageDialog(frame, "No puzzle loaded. Please select a puzzle first.");
+            JOptionPane.showMessageDialog(frame, "No puzzle loaded.");
             return;
         }
         
-        StringBuilder hintText = new StringBuilder();
-        hintText.append("Hints for current puzzle:\n\n");
+        StringBuilder hintText = new StringBuilder("Hints:\n\n");
         
         for (Placement p : placed) {
             StringBuilder currentWord = new StringBuilder();
-            boolean hasPartialInput = false;
+            boolean hasInput = false;
             
-            // Check what user has entered so far
             for (int i = 0; i < p.word.length(); i++) {
                 int rr = (p.dir == Direction.ACROSS) ? p.row : p.row + i;
                 int cc = (p.dir == Direction.ACROSS) ? p.col + i : p.col;
                 String text = cellFields[rr][cc].getText();
-                char ch = (text != null && text.length() > 0) ? text.toUpperCase().charAt(0) : '_';
+                char ch = (!text.isEmpty()) ? text.charAt(0) : '_';
                 currentWord.append(ch);
-                if (ch != '_') hasPartialInput = true;
+                if (ch != '_') hasInput = true;
             }
             
-            String partial = currentWord.toString();
-            hintText.append(String.format("(%s) @ [%d,%d]: ", p.dir, p.row, p.col));
+            hintText.append(String.format("%s [%d,%d]: ", p.dir, p.row, p.col));
             
-            if (hasPartialInput) {
-                // Use Trie to check if partial word is valid prefix
-                if (trie.startsWith(partial)) {
-                    hintText.append("✓ Valid prefix: ").append(partial).append("...\n");
+            if (hasInput) {
+                String partial = currentWord.toString();
+                if (trie.startsWith(partial.replace("_", ""))) {
+                    hintText.append("✓ ").append(partial);
                 } else {
-                    hintText.append("✗ Invalid prefix: ").append(partial).append("\n");
+                    hintText.append("✗ ").append(partial);
                 }
             } else {
-                hintText.append("Clue: ").append(clues.getOrDefault(p.word, "No clue available")).append("\n");
+                hintText.append(p.word.length()).append(" letters");
             }
+            hintText.append("\n");
         }
         
         JOptionPane.showMessageDialog(frame, hintText.toString(), "Hints", JOptionPane.INFORMATION_MESSAGE);
     }
 
-    // Navigate to the next cell in the current word
     private void navigateToNextCell(int currentRow, int currentCol) {
         Placement targetWord = currentTypingWord;
         
-        // If no current typing word, or current cell is not part of current typing word, find one
         if (targetWord == null || !targetWord.coversCell(currentRow, currentCol)) {
-            // Prioritize ACROSS words at intersections for consistent navigation
-            Placement acrossWord = null;
-            Placement downWord = null;
-            
             for (Placement p : placed) {
                 if (p.coversCell(currentRow, currentCol)) {
-                    if (p.dir == Direction.ACROSS) {
-                        acrossWord = p;
-                    } else {
-                        downWord = p;
-                    }
+                    targetWord = p;
+                    currentTypingWord = p;
+                    break;
                 }
             }
-            
-            targetWord = (acrossWord != null) ? acrossWord : downWord;
-            currentTypingWord = targetWord;
         }
         
         if (targetWord != null) {
-            // Calculate position within the word
             int wordPos = (targetWord.dir == Direction.ACROSS) ? 
                 (currentCol - targetWord.col) : (currentRow - targetWord.row);
-            
-            // Move to next position in the word
             int nextPos = wordPos + 1;
+            
             if (nextPos < targetWord.word.length()) {
                 int nextRow = (targetWord.dir == Direction.ACROSS) ? targetWord.row : targetWord.row + nextPos;
                 int nextCol = (targetWord.dir == Direction.ACROSS) ? targetWord.col + nextPos : targetWord.col;
-                
                 if (nextRow < ROWS && nextCol < COLS) {
                     cellFields[nextRow][nextCol].requestFocus();
                 }
@@ -542,53 +618,293 @@ public class JavaCrosswordGenerator {
         }
     }
     
-    // Navigate to the previous cell in the current word
     private void navigateToPreviousCell(int currentRow, int currentCol) {
         Placement targetWord = currentTypingWord;
         
-        // If no current typing word, or current cell is not part of current typing word, find one
         if (targetWord == null || !targetWord.coversCell(currentRow, currentCol)) {
-            // Prioritize ACROSS words at intersections for consistent navigation
-            Placement acrossWord = null;
-            Placement downWord = null;
-            
             for (Placement p : placed) {
                 if (p.coversCell(currentRow, currentCol)) {
-                    if (p.dir == Direction.ACROSS) {
-                        acrossWord = p;
-                    } else {
-                        downWord = p;
-                    }
+                    targetWord = p;
+                    currentTypingWord = p;
+                    break;
                 }
             }
-            
-            targetWord = (acrossWord != null) ? acrossWord : downWord;
-            currentTypingWord = targetWord;
         }
         
         if (targetWord != null) {
-            // Calculate position within the word
             int wordPos = (targetWord.dir == Direction.ACROSS) ? 
                 (currentCol - targetWord.col) : (currentRow - targetWord.row);
-            
-            // Move to previous position in the word
             int prevPos = wordPos - 1;
+            
             if (prevPos >= 0) {
                 int prevRow = (targetWord.dir == Direction.ACROSS) ? targetWord.row : targetWord.row + prevPos;
                 int prevCol = (targetWord.dir == Direction.ACROSS) ? targetWord.col + prevPos : targetWord.col;
-                
                 if (prevRow >= 0 && prevCol >= 0) {
                     cellFields[prevRow][prevCol].requestFocus();
                 }
             }
         }
     }
-    // --- Helper classes & enums ---
 
-    // Direction for placement
+    // CONSTRAINT SATISFACTION
+    private boolean canPlaceWord(String word, int row, int col, Direction dir) {
+        if (dir == Direction.ACROSS) {
+            if (col + word.length() > COLS) return false;
+            if (col > 0 && solution[row][col-1] != '#') return false; // Check left
+            if (col + word.length() < COLS && solution[row][col + word.length()] != '#') return false; // Check right
+        } else {
+            if (row + word.length() > ROWS) return false;
+            if (row > 0 && solution[row-1][col] != '#') return false; // Check above
+            if (row + word.length() < ROWS && solution[row + word.length()][col] != '#') return false; // Check below
+        }
+        
+        int intersections = 0;
+        for (int i = 0; i < word.length(); i++) {
+            int r = (dir == Direction.ACROSS) ? row : row + i;
+            int c = (dir == Direction.ACROSS) ? col + i : col;
+            
+            char existing = solution[r][c];
+            if (existing != '#') {
+                if (existing != word.charAt(i)) return false;
+                intersections++;
+            }
+            
+            // Check perpendicular conflicts
+            if (dir == Direction.ACROSS) {
+                if (r > 0 && solution[r-1][c] != '#' && existing == '#') return false;
+                if (r < ROWS-1 && solution[r+1][c] != '#' && existing == '#') return false;
+            } else {
+                if (c > 0 && solution[r][c-1] != '#' && existing == '#') return false;
+                if (c < COLS-1 && solution[r][c+1] != '#' && existing == '#') return false;
+            }
+        }
+        
+        return placed.isEmpty() || intersections > 0;
+    }
+    
+    private List<Position> findValidPlacements(String word) {
+        List<Position> positions = new ArrayList<>();
+        for (int r = 0; r < ROWS; r++) {
+            for (int c = 0; c < COLS; c++) {
+                for (Direction dir : Direction.values()) {
+                    if (canPlaceWord(word, r, c, dir)) {
+                        int score = calculatePlacementScore(word, r, c, dir);
+                        positions.add(new Position(r, c, dir, score));
+                    }
+                }
+            }
+        }
+        positions.sort((a, b) -> Integer.compare(b.score, a.score));
+        return positions;
+    }
+    
+    private void removeWordFromGrid(Placement p) {
+        for (int i = 0; i < p.word.length(); i++) {
+            int r = (p.dir == Direction.ACROSS) ? p.row : p.row + i;
+            int c = (p.dir == Direction.ACROSS) ? p.col + i : p.col;
+            
+            boolean usedByOther = false;
+            for (Placement other : placed) {
+                if (other != p && other.coversCell(r, c)) {
+                    usedByOther = true;
+                    break;
+                }
+            }
+            if (!usedByOther) {
+                solution[r][c] = '#';
+            }
+        }
+    }
+
+    // BACKTRACKING
+    public boolean generatePuzzleBacktrack(List<String> wordsToPlace) {
+        clearGrid();
+        placed.clear();
+        currentTypingWord = null;
+        
+        List<String> sorted = new ArrayList<>(wordsToPlace);
+        sorted.sort((a, b) -> Integer.compare(b.length(), a.length()));
+        
+        return backtrack(sorted, 0);
+    }
+    
+    private boolean backtrack(List<String> words, int idx) {
+        if (idx >= words.size()) return true;
+        
+        String word = words.get(idx);
+        List<Position> positions = findValidPlacements(word);
+        
+        for (Position pos : positions) {
+            Placement p = new Placement(word, pos.row, pos.col, pos.dir);
+            placed.add(p);
+            applyPlacementToSolution(p);
+            
+            if (backtrack(words, idx + 1)) return true;
+            
+            placed.remove(p);
+            removeWordFromGrid(p);
+        }
+        
+        return false;
+    }
+
+    // HEURISTICS
+    private int calculatePlacementScore(String word, int row, int col, Direction dir) {
+        int score = 0;
+        
+        int intersections = 0;
+        for (int i = 0; i < word.length(); i++) {
+            int r = (dir == Direction.ACROSS) ? row : row + i;
+            int c = (dir == Direction.ACROSS) ? col + i : col;
+            if (solution[r][c] != '#') intersections++;
+        }
+        score += intersections * 10;
+        
+        int centerRow = ROWS / 2;
+        int centerCol = COLS / 2;
+        int distFromCenter = Math.abs(row - centerRow) + Math.abs(col - centerCol);
+        score += Math.max(0, 20 - distFromCenter);
+        
+        score += word.length() * 2;
+        
+        int vowels = 0;
+        for (char c : word.toCharArray()) {
+            if ("AEIOU".indexOf(c) >= 0) vowels++;
+        }
+        score += vowels * 3;
+        
+        if (!placed.isEmpty()) {
+            long across = placed.stream().filter(p -> p.dir == Direction.ACROSS).count();
+            long down = placed.stream().filter(p -> p.dir == Direction.DOWN).count();
+            if ((dir == Direction.ACROSS && across < down) || (dir == Direction.DOWN && down < across)) {
+                score += 5;
+            }
+        }
+        
+        return score;
+    }
+
+    // RANDOMIZATION
+    public boolean generateRandomPuzzle(List<String> wordsToPlace, int seed) {
+        Random random = new Random(seed);
+        clearGrid();
+        placed.clear();
+        currentTypingWord = null;
+        
+        List<String> shuffled = new ArrayList<>(wordsToPlace);
+        Collections.shuffle(shuffled, random);
+        shuffled.sort((a, b) -> {
+            int diff = Integer.compare(b.length(), a.length());
+            return diff != 0 ? diff : random.nextInt(3) - 1;
+        });
+        
+        return backtrackRandom(shuffled, 0, random);
+    }
+    
+    private boolean backtrackRandom(List<String> words, int idx, Random random) {
+        if (idx >= words.size()) return true;
+        
+        String word = words.get(idx);
+        List<Position> positions = findValidPlacements(word);
+        
+        if (positions.isEmpty()) return false;
+        
+        Collections.shuffle(positions, random);
+        
+        for (Position pos : positions) {
+            Placement p = new Placement(word, pos.row, pos.col, pos.dir);
+            placed.add(p);
+            applyPlacementToSolution(p);
+            
+            if (backtrackRandom(words, idx + 1, random)) return true;
+            
+            placed.remove(p);
+            removeWordFromGrid(p);
+        }
+        
+        return false;
+    }
+
+    // UNDO/REDO FOR USER INPUT
+    private void recordUserAction(int row, int col, char previousChar, char newChar) {
+        if (previousChar == newChar) return;
+        UserAction action = new UserAction(row, col, previousChar, newChar);
+        userUndoStack.push(action);
+    }
+    
+    public void undoLastAction() {
+        if (userUndoStack.isEmpty()) {
+            return;
+        }
+        
+        isUndoRedoAction = true;
+        UserAction action = userUndoStack.pop();
+        userRedoStack.push(action);
+        
+        JTextField field = cellFields[action.row][action.col];
+        field.setText(action.previousChar == ' ' ? "" : String.valueOf(action.previousChar));
+        
+        isUndoRedoAction = false;
+    }
+    
+    public void redoLastAction() {
+        if (userRedoStack.isEmpty()) {
+            return;
+        }
+        
+        isUndoRedoAction = true;
+        UserAction action = userRedoStack.pop();
+        userUndoStack.push(action);
+        
+        JTextField field = cellFields[action.row][action.col];
+        field.setText(action.newChar == ' ' ? "" : String.valueOf(action.newChar));
+        
+        isUndoRedoAction = false;
+    }
+    
+    
+    private void resetGameState() {
+        score = 0;
+        currentTypingWord = null;
+        userUndoStack.clear();
+        userRedoStack.clear();
+        updateScore();
+    }
+    
+    private void clearGrid() {
+        for (int r = 0; r < ROWS; r++) {
+            Arrays.fill(solution[r], '#');
+        }
+    }
+
+    // HELPER CLASSES
     private enum Direction { ACROSS, DOWN }
+    
+    private static class Position {
+        final int row, col;
+        final Direction dir;
+        final int score;
+        
+        Position(int row, int col, Direction dir, int score) {
+            this.row = row;
+            this.col = col;
+            this.dir = dir;
+            this.score = score;
+        }
+    }
+    
+    private static class UserAction {
+        final int row, col;
+        final char previousChar, newChar;
+        
+        UserAction(int row, int col, char previousChar, char newChar) {
+            this.row = row;
+            this.col = col;
+            this.previousChar = previousChar;
+            this.newChar = newChar;
+        }
+    }
 
-    // Placement data
     private static class Placement {
         final String word;
         final int row, col;
@@ -608,14 +924,8 @@ public class JavaCrosswordGenerator {
                 return c == col && r >= row && r < row + word.length();
             }
         }
-
-        @Override
-        public String toString() {
-            return String.format("%s@[%d,%d]%s", word, row, col, dir);
-        }
     }
 
-    // --- Trie implementation for dictionary/prefix checks ---
     private static class Trie {
         private static class Node {
             Node[] next = new Node[26];
