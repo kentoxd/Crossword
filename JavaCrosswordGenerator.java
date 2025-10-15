@@ -55,6 +55,19 @@ public class JavaCrosswordGenerator {
         putWord("HASH", "A data structure that maps keys to values for efficient lookup");
         putWord("GRAPH", "A non-linear data structure consisting of vertices and edges");
         putWord("HEAP", "A complete binary tree that satisfies the heap property");
+        putWord("SEARCH", "Algorithm to find elements in a data structure");
+        putWord("SORT", "Algorithm to order elements in a specific sequence");
+        putWord("LIST", "A linear collection of elements");
+        putWord("BINARY", "Base-2 number system or tree with two children");
+        putWord("BACKTRACK", "Algorithm technique that tries solutions and reverts if unsuccessful");
+        putWord("TRIE", "A tree-like data structure for storing strings with common prefixes");
+        putWord("BUBBLE", "Simple sorting algorithm that repeatedly swaps adjacent elements");
+        putWord("ALGORITHM", "A step-by-step procedure for solving a problem");
+        putWord("QUICKSORT", "Efficient sorting algorithm using divide and conquer");
+        putWord("MERGESORT", "Stable sorting algorithm using divide and conquer");
+        putWord("HEAPSORT", "Sorting algorithm using heap data structure");
+        putWord("BUCKETSORT", "Sorting algorithm that distributes elements into buckets");
+        putWord("SHELLSORT", "In-place sorting algorithm with gap-based comparisons");
 
         for (String w : words) trie.insert(w);
     }
@@ -65,27 +78,88 @@ public class JavaCrosswordGenerator {
     }
 
     private void loadDefaultCrossword() {
+        // Load Level 1 - Easy crossword with proper intersections
+        loadLevel(1);
+    }
+    
+    private void loadLevel(int levelNumber) {
         clearGrid();
         placed.clear();
+        currentTypingWord = null;
         
-        // Create a simple, valid default puzzle
-        placed.add(new Placement("LINKEDLIST", 0, 7, Direction.DOWN));
-        placed.add(new Placement("QUEUE", 4, 5, Direction.ACROSS));
-        placed.add(new Placement("BUBBLESORT", 7, 2, Direction.DOWN));
-        placed.add(new Placement("BUCKETSORT", 9, 2, Direction.ACROSS));
-        placed.add(new Placement("STACK", 13, 0, Direction.DOWN));
-        placed.add(new Placement("ARRAY", 15, 0, Direction.ACROSS));
-        placed.add(new Placement("SHELLSORT", 13, 8, Direction.ACROSS));
-        placed.add(new Placement("ALGORITHM", 6, 9, Direction.DOWN));
+        // Hardcoded levels with proper intersections
+        switch (levelNumber) {
+            case 1:
+                loadLevel1();
+                break;
+            case 2:
+                loadLevel2();
+                break;
+            case 3:
+                loadLevel3();
+                break;
+            case 4:
+                loadLevel4();
+                break;
+            default:
+                JOptionPane.showMessageDialog(frame, "Level " + levelNumber + " not available!");
+                return;
+        }
         
         for (Placement p : placed) {
             applyPlacementToSolution(p);
         }
         
-        updateUIFromSolution(true);
+        updateUIFromSolution(false);
         updateClueArea();
-        resetGameState();
-        frame.setTitle("DSA Crossword - Default Puzzle");
+        computeScoreFromSolution();
+        frame.setTitle("DSA Crossword - Level " + levelNumber);
+    }
+    
+    private void loadLevel1() {
+        // Level 1: Easy - Basic Data Structures
+        // STACK (across) intersects with TREE (down) at 'T'
+        // ARRAY (across) intersects with TREE (down) at 'R'
+        placed.add(new Placement("STACK", 5, 5, Direction.ACROSS));
+        placed.add(new Placement("TREE", 5, 5, Direction.DOWN));
+        placed.add(new Placement("ARRAY", 7, 5, Direction.ACROSS));
+        placed.add(new Placement("HEAP", 5, 7, Direction.DOWN));
+    }
+    
+    private void loadLevel2() {
+        // Level 2: Medium - Algorithms
+        // HASH (across) intersects with HEAP (down) at 'H'
+        // SEARCH (across) intersects with HEAP (down) at 'E'
+        placed.add(new Placement("HASH", 4, 4, Direction.ACROSS));
+        placed.add(new Placement("HEAP", 4, 4, Direction.DOWN));
+        placed.add(new Placement("SEARCH", 5, 4, Direction.ACROSS));
+        placed.add(new Placement("SORT", 4, 6, Direction.DOWN));
+        placed.add(new Placement("LIST", 7, 4, Direction.ACROSS));
+    }
+    
+    private void loadLevel3() {
+        // Level 3: Hard - Advanced Data Structures
+        // BINARY (across) intersects with BACKTRACK (down) at 'B'
+        // GRAPH (across) intersects with BACKTRACK (down) at 'A'
+        placed.add(new Placement("BINARY", 3, 3, Direction.ACROSS));
+        placed.add(new Placement("BACKTRACK", 3, 3, Direction.DOWN));
+        placed.add(new Placement("GRAPH", 4, 3, Direction.ACROSS));
+        placed.add(new Placement("TRIE", 3, 5, Direction.DOWN));
+        placed.add(new Placement("QUEUE", 6, 3, Direction.ACROSS));
+        placed.add(new Placement("BUBBLE", 3, 7, Direction.DOWN));
+    }
+    
+    private void loadLevel4() {
+        // Level 4: Expert - Complex Algorithms
+        // ALGORITHM (across) intersects with BACKTRACK (down) at 'A'
+        // QUICKSORT (across) intersects with BACKTRACK (down) at 'K'
+        placed.add(new Placement("ALGORITHM", 2, 2, Direction.ACROSS));
+        placed.add(new Placement("BACKTRACK", 2, 2, Direction.DOWN));
+        placed.add(new Placement("QUICKSORT", 3, 2, Direction.ACROSS));
+        placed.add(new Placement("MERGESORT", 4, 2, Direction.ACROSS));
+        placed.add(new Placement("HEAPSORT", 5, 2, Direction.ACROSS));
+        placed.add(new Placement("BUCKETSORT", 2, 4, Direction.DOWN));
+        placed.add(new Placement("SHELLSORT", 2, 6, Direction.DOWN));
     }
 
     private void buildUI() {
@@ -104,13 +178,15 @@ public class JavaCrosswordGenerator {
         JScrollPane clueScroll = new JScrollPane(clueArea);
         clueScroll.setPreferredSize(new Dimension(400, 700));
 
-        JPanel topButtons = new JPanel(new GridLayout(4, 2, 6, 6));
+        JPanel topButtons = new JPanel(new GridLayout(5, 2, 6, 6));
         JButton checkBtn = new JButton("Check");
         JButton revealBtn = new JButton("Reveal");
         JButton hintBtn = new JButton("Hint");
         JButton resetBtn = new JButton("Reset");
-        JButton generateBtn = new JButton("Generate");
-        JButton randomBtn = new JButton("Random");
+        JButton level1Btn = new JButton("Level 1 (Easy)");
+        JButton level2Btn = new JButton("Level 2 (Medium)");
+        JButton level3Btn = new JButton("Level 3 (Hard)");
+        JButton level4Btn = new JButton("Level 4 (Expert)");
         JButton undoBtn = new JButton("Undo (Ctrl+Z)");
         JButton redoBtn = new JButton("Redo (Ctrl+Y)");
 
@@ -132,35 +208,10 @@ public class JavaCrosswordGenerator {
             resetGameState();
         });
         
-        generateBtn.addActionListener(_ -> {
-            List<String> wordsToGenerate = new ArrayList<>(words);
-            wordsToGenerate = wordsToGenerate.subList(0, Math.min(8, wordsToGenerate.size())); // Limit to 8 words
-            
-            if (generatePuzzleBacktrack(wordsToGenerate)) {
-                updateUIFromSolution(false);
-                updateClueArea();
-                resetGameState();
-                JOptionPane.showMessageDialog(frame, "Puzzle generated successfully with " + placed.size() + " words!");
-            } else {
-                JOptionPane.showMessageDialog(frame, "Failed to generate puzzle. Try with fewer words.");
-            }
-        });
-        
-        randomBtn.addActionListener(_ -> {
-            List<String> wordsToGenerate = new ArrayList<>(words);
-            Collections.shuffle(wordsToGenerate);
-            wordsToGenerate = wordsToGenerate.subList(0, Math.min(8, wordsToGenerate.size()));
-            
-            int seed = (int) System.currentTimeMillis();
-            if (generateRandomPuzzle(wordsToGenerate, seed)) {
-                updateUIFromSolution(false);
-                updateClueArea();
-                resetGameState();
-                JOptionPane.showMessageDialog(frame, "Random puzzle generated with " + placed.size() + " words!");
-            } else {
-                JOptionPane.showMessageDialog(frame, "Failed to generate random puzzle.");
-            }
-        });
+        level1Btn.addActionListener(_ -> loadLevel(1));
+        level2Btn.addActionListener(_ -> loadLevel(2));
+        level3Btn.addActionListener(_ -> loadLevel(3));
+        level4Btn.addActionListener(_ -> loadLevel(4));
         
         undoBtn.addActionListener(_ -> undoLastAction());
         redoBtn.addActionListener(_ -> redoLastAction());
@@ -169,8 +220,10 @@ public class JavaCrosswordGenerator {
         topButtons.add(revealBtn);
         topButtons.add(hintBtn);
         topButtons.add(resetBtn);
-        topButtons.add(generateBtn);
-        topButtons.add(randomBtn);
+        topButtons.add(level1Btn);
+        topButtons.add(level2Btn);
+        topButtons.add(level3Btn);
+        topButtons.add(level4Btn);
         topButtons.add(undoBtn);
         topButtons.add(redoBtn);
 
