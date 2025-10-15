@@ -120,10 +120,10 @@ public class JavaCrosswordGenerator {
         // Level 1: Easy - Basic Data Structures
         // STACK (across) intersects with TREE (down) at 'T'
         // ARRAY (across) intersects with TREE (down) at 'R'
-        placed.add(new Placement("STACK", 5, 5, Direction.ACROSS));
-        placed.add(new Placement("TREE", 5, 5, Direction.DOWN));
+        placed.add(new Placement("STACK", 5, 5, Direction.DOWN));
+        placed.add(new Placement("BINARY", 2, 9, Direction.DOWN));
         placed.add(new Placement("ARRAY", 7, 5, Direction.ACROSS));
-        placed.add(new Placement("HEAP", 5, 7, Direction.DOWN));
+        placed.add(new Placement("TREE", 6, 7   , Direction.DOWN));
     }
     
     private void loadLevel2() {
