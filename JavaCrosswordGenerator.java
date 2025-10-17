@@ -130,36 +130,36 @@ public class JavaCrosswordGenerator {
         // Level 2: Medium - Algorithms
         // HASH (across) intersects with HEAP (down) at 'H'
         // SEARCH (across) intersects with HEAP (down) at 'E'
-        placed.add(new Placement("HASH", 4, 4, Direction.ACROSS));
-        placed.add(new Placement("HEAP", 4, 4, Direction.DOWN));
-        placed.add(new Placement("SEARCH", 5, 4, Direction.ACROSS));
-        placed.add(new Placement("SORT", 4, 6, Direction.DOWN));
-        placed.add(new Placement("LIST", 7, 4, Direction.ACROSS));
+        placed.add(new Placement("HASH", 4, 6, Direction.ACROSS));
+        placed.add(new Placement("HEAP", 4, 6, Direction.DOWN));
+        placed.add(new Placement("SEARCH", 6, 4, Direction.ACROSS));
+        placed.add(new Placement("SORT", 6, 4, Direction.DOWN));
+        placed.add(new Placement("LIST", 9, 1, Direction.ACROSS));
     }
     
     private void loadLevel3() {
         // Level 3: Hard - Advanced Data Structures
         // BINARY (across) intersects with BACKTRACK (down) at 'B'
         // GRAPH (across) intersects with BACKTRACK (down) at 'A'
-        placed.add(new Placement("BINARY", 3, 3, Direction.ACROSS));
-        placed.add(new Placement("BACKTRACK", 3, 3, Direction.DOWN));
-        placed.add(new Placement("GRAPH", 4, 3, Direction.ACROSS));
-        placed.add(new Placement("TRIE", 3, 5, Direction.DOWN));
-        placed.add(new Placement("QUEUE", 6, 3, Direction.ACROSS));
-        placed.add(new Placement("BUBBLE", 3, 7, Direction.DOWN));
+        placed.add(new Placement("BINARY", 9, 6, Direction.ACROSS));
+        placed.add(new Placement("BACKTRACK", 3, 9, Direction.DOWN));
+        placed.add(new Placement("GRAPH", 1, 10, Direction.ACROSS));
+        placed.add(new Placement("TRIE", 0, 11, Direction.DOWN));
+        placed.add(new Placement("QUEUE", 0, 7, Direction.DOWN));
+        placed.add(new Placement("BUBBLE", 3, 6, Direction.ACROSS));
     }
     
     private void loadLevel4() {
         // Level 4: Expert - Complex Algorithms
         // ALGORITHM (across) intersects with BACKTRACK (down) at 'A'
         // QUICKSORT (across) intersects with BACKTRACK (down) at 'K'
-        placed.add(new Placement("ALGORITHM", 2, 2, Direction.ACROSS));
-        placed.add(new Placement("BACKTRACK", 2, 2, Direction.DOWN));
-        placed.add(new Placement("QUICKSORT", 3, 2, Direction.ACROSS));
-        placed.add(new Placement("MERGESORT", 4, 2, Direction.ACROSS));
-        placed.add(new Placement("HEAPSORT", 5, 2, Direction.ACROSS));
-        placed.add(new Placement("BUCKETSORT", 2, 4, Direction.DOWN));
-        placed.add(new Placement("SHELLSORT", 2, 6, Direction.DOWN));
+        placed.add(new Placement("ALGORITHM", 2, 8, Direction.DOWN));
+        placed.add(new Placement("BACKTRACK", 2, 7, Direction.ACROSS));
+        placed.add(new Placement("QUICKSORT", 5, 2, Direction.ACROSS));
+        placed.add(new Placement("MERGESORT", 8, 0, Direction.ACROSS));
+        placed.add(new Placement("HEAPSORT", 7, 1, Direction.DOWN));
+        placed.add(new Placement("BUCKETSORT", 16, 0, Direction.ACROSS));
+        placed.add(new Placement("SHELLSORT", 8, 5, Direction.DOWN));
     }
 
     private void buildUI() {
