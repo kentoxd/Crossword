@@ -30,7 +30,12 @@ public class JavaCrosswordGenerator {
     private boolean gameEnded = false;
     private final List<Placement> placed = new ArrayList<>();
     private Placement currentTypingWord = null;
-    
+    private final JLabel powerUpLabel = new JLabel("Power-Ups: None");
+    private boolean extraHintUnlocked = false;
+    private boolean autoFillUnlocked = false;
+
+    private boolean extraHintUsed = false;  // Add this line
+private boolean autoFillUsed = false; 
     // User action undo/redo
     private final Deque<UserAction> userUndoStack = new ArrayDeque<>();
     private final Deque<UserAction> userRedoStack = new ArrayDeque<>();
@@ -134,7 +139,7 @@ public class JavaCrosswordGenerator {
         
         updateUIFromSolution(false);
         updateClueArea();
-        computeScoreFromSolution();
+        resetGameState();  // Changed from computeScoreFromSolution()
         frame.setTitle("DSA Crossword - Level " + levelNumber);
     }
     
@@ -218,7 +223,7 @@ public class JavaCrosswordGenerator {
         JScrollPane clueScroll = new JScrollPane(clueArea);
         clueScroll.setPreferredSize(new Dimension(400, 700));
 
-        JPanel topButtons = new JPanel(new GridLayout(5, 2, 6, 6));
+        JPanel topButtons = new JPanel(new GridLayout(6, 2, 6, 6));
         JButton checkBtn = new JButton("Check");
         JButton revealBtn = new JButton("Reveal");
         JButton hintBtn = new JButton("Hint");
@@ -229,9 +234,18 @@ public class JavaCrosswordGenerator {
         JButton level4Btn = new JButton("Level 4 (Expert)");
         JButton undoBtn = new JButton("Undo (Ctrl+Z)");
         JButton redoBtn = new JButton("Redo (Ctrl+Y)");
+        
+        JButton extraHintBtn = new JButton("Extra Hint (30%)");
+        JButton autoFillBtn = new JButton("Auto-Fill (60%)");
+        
+        checkBtn.addActionListener(e -> checkAllWords());  
+        hintBtn.addActionListener(e -> showHint());  
 
-        checkBtn.addActionListener(e -> checkAllWords());
-        hintBtn.addActionListener(e -> showHint());
+        extraHintBtn.addActionListener(e -> useExtraHintPowerUp());
+        extraHintBtn.setEnabled(false);
+        
+        autoFillBtn.addActionListener(e -> useAutoFillPowerUp());
+        autoFillBtn.setEnabled(false);
 
         resetBtn.addActionListener(e -> {
             for (int r = 0; r < ROWS; r++) {
@@ -286,12 +300,17 @@ public class JavaCrosswordGenerator {
         topButtons.add(level4Btn);
         topButtons.add(undoBtn);
         topButtons.add(redoBtn);
+        topButtons.add(extraHintBtn);
+        topButtons.add(autoFillBtn);
 
         JPanel statsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 5));
         scoreLabel.setFont(new Font("Arial", Font.BOLD, 14));
         hintsLabel.setFont(new Font("Arial", Font.BOLD, 14));
+        powerUpLabel.setFont(new Font("Arial", Font.BOLD, 14));
+        powerUpLabel.setForeground(new Color(0, 100, 200));
         statsPanel.add(scoreLabel);
         statsPanel.add(hintsLabel);
+        statsPanel.add(powerUpLabel);
 
         rightPanel.add(topButtons, BorderLayout.NORTH);
         rightPanel.add(clueScroll, BorderLayout.CENTER);
@@ -681,6 +700,7 @@ public class JavaCrosswordGenerator {
 
     private void updateScore() {
         scoreLabel.setText("Score: " + score);
+        checkPowerUpUnlocks();
     }
 
     private void showHint() {
@@ -1017,7 +1037,14 @@ public class JavaCrosswordGenerator {
         currentTypingWord = null;
         userUndoStack.clear();
         userRedoStack.clear();
+        hintsRemaining = INITIAL_HINTS;
+        extraHintUnlocked = false;
+        autoFillUnlocked = false;
+        extraHintUsed = false;  
+        autoFillUsed = false; 
         updateScore();
+        hintsLabel.setText("Hints: " + hintsRemaining);
+        powerUpLabel.setText("Power-Ups: None");
     }
     
     private void clearGrid() {
@@ -1116,5 +1143,211 @@ public class JavaCrosswordGenerator {
             }
             return true;
         }
+    }
+    
+    private void checkPowerUpUnlocks() {
+        StringBuilder powerUps = new StringBuilder("Power-Ups: ");
+        boolean anyUnlocked = false;
+        
+        // Calculate max possible score for current puzzle
+        int maxPossibleScore = placed.size() * 10;
+        
+        // Extra Hint at 30% of max score
+        int extraHintThreshold = (int)(maxPossibleScore * 0.3);
+        if (score >= extraHintThreshold && !extraHintUnlocked) {
+            extraHintUnlocked = true;
+            JOptionPane.showMessageDialog(frame, 
+                "🎉 Power-Up Unlocked!\n\nExtra Hint - Get 3 additional hints!\n(Unlocked at 30% completion)",
+                "Power-Up Unlocked",
+                JOptionPane.INFORMATION_MESSAGE);
+            enablePowerUpButton("Extra Hint");
+        }
+        
+        // Auto-Fill at 60% of max score
+        int autoFillThreshold = (int)(maxPossibleScore * 0.6);
+        if (score >= autoFillThreshold && !autoFillUnlocked) {
+            autoFillUnlocked = true;
+            JOptionPane.showMessageDialog(frame,
+                "🎉 Power-Up Unlocked!\n\nAuto-Fill Letter - Fill all instances of a letter!\n(Unlocked at 60% completion)",
+                "Power-Up Unlocked",
+                JOptionPane.INFORMATION_MESSAGE);
+            enablePowerUpButton("Auto-Fill");
+        }
+        
+        if (extraHintUnlocked) {
+            powerUps.append("Extra Hint ✓ ");
+            anyUnlocked = true;
+        }
+        if (autoFillUnlocked) {
+            powerUps.append("Auto-Fill ✓");
+            anyUnlocked = true;
+        }
+        
+        if (!anyUnlocked) {
+            powerUps.append("None (30% for Extra Hint, 60% for Auto-Fill)");
+        }
+        
+        powerUpLabel.setText(powerUps.toString());
+    }
+
+    private void enablePowerUpButton(String powerUpName) {
+        Component[] components = ((JPanel)frame.getContentPane().getComponent(1)).getComponent(0).getParent().getComponents();
+        for (Component comp : components) {
+            if (comp instanceof JPanel) {
+                for (Component btn : ((JPanel)comp).getComponents()) {
+                    if (btn instanceof JButton) {
+                        JButton button = (JButton)btn;
+                        if (button.getText().contains(powerUpName.split(" ")[0])) {
+                            button.setEnabled(true);
+                            button.setBackground(new Color(144, 238, 144));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void useExtraHintPowerUp() {
+        if (!extraHintUnlocked) {
+            JOptionPane.showMessageDialog(frame, 
+                "This power-up is locked!\nReach 30% of max score to unlock.",
+                "Locked",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        
+        if (extraHintUsed) {  // Add this check
+            JOptionPane.showMessageDialog(frame,
+                "This power-up has already been used!",
+                "Already Used",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        
+        int response = JOptionPane.showConfirmDialog(frame,
+            "Use Extra Hint Power-Up?\n\nThis will give you 3 additional hints.\nThis can only be used once per game.",
+            "Use Power-Up",
+            JOptionPane.YES_NO_OPTION);
+            
+        if (response == JOptionPane.YES_OPTION) {
+            hintsRemaining += 3;
+            hintsLabel.setText("Hints: " + hintsRemaining);
+            extraHintUsed = true;  // Mark as used
+            
+            // Disable the button
+            Component[] components = ((JPanel)frame.getContentPane().getComponent(1)).getComponent(0).getParent().getComponents();
+            for (Component comp : components) {
+                if (comp instanceof JPanel) {
+                    for (Component btn : ((JPanel)comp).getComponents()) {
+                        if (btn instanceof JButton && ((JButton)btn).getText().contains("Extra Hint")) {
+                            btn.setEnabled(false);
+                            ((JButton)btn).setBackground(Color.LIGHT_GRAY);  // Change color to show it's used
+                        }
+                    }
+                }
+            }
+            
+            JOptionPane.showMessageDialog(frame,
+                "Power-Up Used!\n\n+3 Hints added!",
+                "Success",
+                JOptionPane.INFORMATION_MESSAGE);
+                
+            updatePowerUpLabel();  // Update the label
+        }
+    }
+    private void useAutoFillPowerUp() {
+        if (!autoFillUnlocked) {
+            JOptionPane.showMessageDialog(frame,
+                "This power-up is locked!\nReach 60% of max score to unlock.",
+                "Locked",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        
+        if (autoFillUsed) {  // Add this check
+            JOptionPane.showMessageDialog(frame,
+                "This power-up has already been used!",
+                "Already Used",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        
+        String input = JOptionPane.showInputDialog(frame,
+            "Enter a letter (A-Z) to auto-fill all instances:",
+            "Auto-Fill Letter",
+            JOptionPane.QUESTION_MESSAGE);
+            
+        if (input == null || input.trim().isEmpty()) {
+            return;
+        }
+        
+        char letter = input.trim().toUpperCase().charAt(0);
+        if (letter < 'A' || letter > 'Z') {
+            JOptionPane.showMessageDialog(frame,
+                "Invalid letter! Please enter A-Z.",
+                "Error",
+                JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        
+        int filledCount = 0;
+        isUndoRedoAction = true;
+        
+        for (int r = 0; r < ROWS; r++) {
+            for (int c = 0; c < COLS; c++) {
+                if (solution[r][c] == letter && cellFields[r][c].isEditable()) {
+                    cellFields[r][c].setText(String.valueOf(letter));
+                    cellFields[r][c].setBackground(new Color(200, 255, 200));
+                    filledCount++;
+                }
+            }
+        }
+        
+        isUndoRedoAction = false;
+        autoFillUsed = true;  // Mark as used
+        
+        // Disable the button
+        Component[] components = ((JPanel)frame.getContentPane().getComponent(1)).getComponent(0).getParent().getComponents();
+        for (Component comp : components) {
+            if (comp instanceof JPanel) {
+                for (Component btn : ((JPanel)comp).getComponents()) {
+                    if (btn instanceof JButton && ((JButton)btn).getText().contains("Auto-Fill")) {
+                        btn.setEnabled(false);
+                        ((JButton)btn).setBackground(Color.LIGHT_GRAY);  // Change color to show it's used
+                    }
+                }
+            }
+        }
+        
+        JOptionPane.showMessageDialog(frame,
+            String.format("Power-Up Used!\n\nFilled %d cells with letter '%c'!", filledCount, letter),
+            "Success",
+            JOptionPane.INFORMATION_MESSAGE);
+            
+        updatePowerUpLabel();  // Update the label
+    }
+    private void updatePowerUpLabel() {
+        StringBuilder powerUps = new StringBuilder("Power-Ups: ");
+        boolean anyAvailable = false;
+        
+        if (extraHintUnlocked && !extraHintUsed) {
+            powerUps.append("Extra Hint ✓ ");
+            anyAvailable = true;
+        } else if (extraHintUsed) {
+            powerUps.append("Extra Hint (Used) ");
+        }
+        
+        if (autoFillUnlocked && !autoFillUsed) {
+            powerUps.append("Auto-Fill ✓");
+            anyAvailable = true;
+        } else if (autoFillUsed) {
+            powerUps.append("Auto-Fill (Used)");
+        }
+        
+        if (!anyAvailable && !extraHintUsed && !autoFillUsed) {
+            powerUps.append("None (30% for Extra Hint, 60% for Auto-Fill)");
+        }
+        
+        powerUpLabel.setText(powerUps.toString());
     }
 }
